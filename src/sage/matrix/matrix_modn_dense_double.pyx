@@ -42,6 +42,13 @@ MAX_MODULUS = 2**23
 
 from sage.rings.finite_rings.integer_mod cimport IntegerMod_int64
 
+import numpy as np
+cimport numpy as np
+np.import_array()
+DTYPE = np.int32
+ctypedef np.int32_t DTYPE_t
+
+
 include "matrix_modn_dense_template.pxi"
 
 
@@ -174,3 +181,31 @@ cdef class Matrix_modn_dense_double(Matrix_modn_dense_template):
             return (<IntegerMod_int>_self._get_template)._new_c(<int_fast32_t>result)
         else:
             return (<IntegerMod_int64>_self._get_template)._new_c(<int_fast64_t>result)
+
+    def numpy(self, dtype=None): #FIXME remove dtype option?
+        cdef Py_ssize_t nrows = self._nrows
+        cdef Py_ssize_t ncols = self._ncols
+        cdef Py_ssize_t i, j
+
+        cdef np.ndarray[DTYPE_t, ndim=2] A = np.ndarray(shape=(nrows,ncols), dtype=DTYPE)
+        for i in range(nrows):
+            for j in range(ncols):
+                A[i,j] = <DTYPE_t>self._entries[i*ncols+j]
+        
+        return A
+
+    def from_numpy(self, np.ndarray[DTYPE_t, ndim=2] A, perm=None):
+        cdef Py_ssize_t nrows = self._nrows
+        cdef Py_ssize_t ncols = self._ncols
+        cdef Py_ssize_t i, j, ii
+
+        if perm==None:
+            for i in range(nrows):
+                for j in range(ncols):
+                    self._entries[i*ncols+j] = <double>A[i,j]
+        else:
+            for i in range(nrows):
+                ii = perm[i]
+                for j in range(ncols):
+                    self._entries[ii*ncols+j] = <double>A[i,j]
+

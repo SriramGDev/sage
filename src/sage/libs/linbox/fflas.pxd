@@ -81,6 +81,9 @@ cdef extern from "fflas-ffpack/fflas-ffpack.h" namespace "FFLAS":
              size_t C_stride, size_t numthreads)
 
 cdef extern from "fflas-ffpack/fflas-ffpack.h" namespace "FFPACK":
+    ctypedef enum FFPACK_LU_TAG:
+        FfpackTileRecursive
+
     # double
     bint IsSingular (Modular_double F,
                      size_t nrows, size_t ncols, Modular_double.Element* A,
@@ -105,7 +108,7 @@ cdef extern from "fflas-ffpack/fflas-ffpack.h" namespace "FFPACK":
 
     size_t ReducedRowEchelonForm (Modular_double F, size_t a, size_t b,
                                   Modular_double.Element* matrix,
-                                  size_t s, size_t* P, size_t* Q)
+                                  size_t s, size_t* P, size_t* Q, bool transform, FFPACK_LU_TAG LuTag)
 
     size_t pReducedRowEchelonForm (Modular_double F, size_t a, size_t b,
                                   Modular_double.Element* matrix,
@@ -159,7 +162,7 @@ cdef extern from "fflas-ffpack/fflas-ffpack.h" namespace "FFPACK":
 
     size_t ReducedRowEchelonForm (Modular_float F, size_t a, size_t b,
                                   Modular_float.Element* matrix,
-                                  size_t s, size_t* P, size_t* Q)
+                                  size_t s, size_t* P, size_t* Q, bool transform, FFPACK_LU_TAG LuTag)
 
     size_t pReducedRowEchelonForm (Modular_float F, size_t a, size_t b,
                                   Modular_float.Element* matrix,

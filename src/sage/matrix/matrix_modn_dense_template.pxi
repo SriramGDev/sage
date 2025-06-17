@@ -95,7 +95,7 @@ from cysignals.signals cimport sig_check, sig_on, sig_off
 
 from sage.libs.gmp.mpz cimport *
 from sage.libs.linbox.fflas cimport FFLAS_TRANSPOSE, FflasNoTrans, FflasTrans, \
-    FflasRight, vector, list as std_list
+    FfpackTileRecursive, FflasRight, vector, list as std_list
 from libcpp cimport bool
 from sage.parallel.parallelism import Parallelism
 
@@ -194,7 +194,7 @@ cdef inline linbox_echelonize(celement modulus, celement* entries, Py_ssize_t nr
     if nbthreads > 1 :
         r = pReducedRowEchelonForm(F[0], nrows, ncols, <ModField.Element*>entries, ncols, P, Q, transform, nbthreads)
     else :
-        r = ReducedRowEchelonForm(F[0], nrows, ncols, <ModField.Element*>entries, ncols, P, Q)
+        r = ReducedRowEchelonForm(F[0], nrows, ncols, <ModField.Element*>entries, ncols, P, Q, transform, FfpackTileRecursive)
     if nrows * ncols > 1000:
         sig_off()
 
@@ -204,14 +204,26 @@ cdef inline linbox_echelonize(celement modulus, celement* entries, Py_ssize_t nr
         if i<r:
             (entries + i*(ncols+1))[0] = 1
 
-    applyP(F[0], FflasRight, FflasNoTrans, nrows, 0, r, <ModField.Element*>entries, ncols, Q)
+    #applyP(F[0], FflasRight, FflasNoTrans, nrows, 0, r, <ModField.Element*>entries, ncols, Q)
 
-    cdef list pivots = [int(Q[i]) for i in range(r)]
+    cdef Py_ssize_t ii = 0
+    # compute pivots == column rank profile
+    cdef list pivots = [int(i) for i in range(ncols)]
+    for i in range(ncols):
+        if (Q[i] != i):
+            tmp = pivots[i]
+            pivots[i] = pivots[Q[i]]
+            pivots[Q[i]] = tmp
+    pivots = pivots[:r]
+    #pivots.sort()
+
+    cdef list permP = [int(P[i]) for i in range(nrows)]
+    cdef list permQ = [int(Q[i]) for i in range(ncols)]
 
     sig_free(P)
     sig_free(Q)
     del F
-    return r, pivots
+    return r, pivots, permP, permQ
 
 cdef inline linbox_echelonize_efd(celement modulus, celement* entries, Py_ssize_t nrows, Py_ssize_t ncols):
     # See trac #13878: This is to avoid sending invalid data to linbox,
@@ -278,7 +290,7 @@ cdef inline celement linbox_det(celement modulus, celement* entries, Py_ssize_t 
     cdef ModField *F = new ModField(<long>modulus)
     cdef celement *cpy = linbox_copy(modulus, entries, n, n)
 
-    cdef celement d = 0
+    cdef celement d
     cdef size_t nbthreads
     nbthreads = Parallelism().get('linbox')
 
@@ -1775,11 +1787,13 @@ cdef class Matrix_modn_dense_template(Matrix_dense):
         if efd:
             r, pivots = linbox_echelonize_efd(self.p, self._entries, self._nrows, self._ncols)
         else:
-            r, pivots = linbox_echelonize(self.p, self._entries, self._nrows, self._ncols)
+            r, pivots, permP, permQ = linbox_echelonize(self.p, self._entries, self._nrows, self._ncols)
+
         verbose('done with echelonize',t)
         self.cache('in_echelon_form',True)
         self.cache('rank', r)
         self.cache('pivots', tuple(pivots))
+        return permP, permQ, pivots
 
     def _echelon_in_place_classical(self):
         """

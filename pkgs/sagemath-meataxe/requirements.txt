@@ -1,0 +1,2 @@
+Cython==3.0.11
+sagemath-standard==10.7.beta6
